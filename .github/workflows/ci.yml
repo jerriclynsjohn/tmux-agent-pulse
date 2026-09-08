@@ -1,0 +1,55 @@
+name: Tests
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        python: ['3.10', '3.13']
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    env:
+      PYTHONDONTWRITEBYTECODE: '1'
+      AGENT_PULSE_REAL_TMUX_TEST: '1'
+      AGENT_PULSE_NOTIFY: '0'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: tmux-plugins/tpm
+          path: .test-deps/tpm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Install Linux dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y tmux fzf build-essential
+      - name: Install macOS dependencies
+        if: runner.os == 'macOS'
+        run: brew install tmux fzf
+      - name: Report versions
+        run: |
+          python3 --version
+          tmux -V
+          fzf --version
+      - name: Unit and private tmux integration tests
+        env:
+          AGENT_PULSE_TPM_PATH: ${{ github.workspace }}/.test-deps/tpm
+        run: python3 -m unittest discover -s tests -v
+      - name: Provider lifecycle smoke test
+        run: python3 tests/tmux_status_smoke.py
+      - name: Shell syntax
+        run: |
+          bash -n agent-pulse.tmux
+          for script in lib/*.sh; do bash -n "$script"; done
