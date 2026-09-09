@@ -1,0 +1,190 @@
+name: Verify PR commits
+
+on:
+  pull_request_target:
+    branches: [main]
+    types: [opened, reopened, synchronize, ready_for_review, edited]
+
+permissions:
+  contents: read
+  pull-requests: read
+  # pull_request_target jobs run on the trusted base, not the PR head.
+  # This is needed only to publish the required status on the exact PR head.
+  statuses: write
+
+concurrency:
+  group: verified-commits-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+  audit:
+    name: Audit PR commit signatures
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      # No checkout, imported action, cache, artifact, or code from the PR.
+      # Keep this verifier inline: pull_request_target uses the trusted workflow.
+      - name: Require GitHub verification for every proposed commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          import re
+          import sys
+          import urllib.error
+          import urllib.request
+
+          CONTEXT = "Verified commits"
+          MAX_COMMITS = 250  # The PR commits endpoint cannot return more.
+          PAGE_SIZE = 100
+
+          class VerificationError(Exception):
+              pass
+
+          def require(condition, message):
+              if not condition:
+                  raise VerificationError(message)
+
+          def commit_sha(value):
+              require(isinstance(value, str) and re.fullmatch(r"[0-9a-f]{40}", value),
+                      "Missing or invalid commit SHA from GitHub")
+              return value
+
+          class NoRedirect(urllib.request.HTTPRedirectHandler):
+              def redirect_request(self, request, *args, **kwargs):
+                  return None  # Never forward the token to a redirect target.
+
+          class GitHub:
+              def __init__(self, token):
+                  require(bool(token), "GitHub token is missing")
+                  self.token = token
+                  self.opener = urllib.request.build_opener(NoRedirect())
+
+              def request(self, path, data=None):
+                  require(path.startswith("/repos/"), "Invalid GitHub API path")
+                  request = urllib.request.Request(
+                      "https://api.github.com" + path,
+                      data=None if data is None else json.dumps(data).encode(),
+                      headers={"Authorization": "Bearer " + self.token,
+                               "Accept": "application/vnd.github+json",
+                               "Content-Type": "application/json",
+                               "X-GitHub-Api-Version": "2026-03-10"})
+                  try:
+                      with self.opener.open(request, timeout=30) as response:
+                          raw = response.read(16 * 1024 * 1024 + 1)
+                      require(len(raw) <= 16 * 1024 * 1024, "GitHub API response exceeds the safety limit")
+                      return json.loads(raw)
+                  except urllib.error.HTTPError as error:
+                      raise VerificationError(f"GitHub API returned HTTP {error.code}") from None
+                  except (urllib.error.URLError, OSError, ValueError):
+                      raise VerificationError("GitHub API request failed or returned invalid JSON") from None
+
+          def snapshot(pr, repository):
+              require(isinstance(pr, dict) and pr.get("state") == "open", "PR is not open")
+              require(pr["base"]["repo"]["full_name"] == repository, "Unexpected PR base repository")
+              count = pr.get("commits")
+              require(type(count) is int and 1 <= count <= MAX_COMMITS,
+                      "PR must contain 1–250 commits; larger PRs need to be split")
+              require(pr["base"].get("ref") == "main", "Only PRs targeting main can pass this check")
+              return (commit_sha(pr["head"]["sha"]), commit_sha(pr["base"]["sha"]),
+                      pr["base"]["ref"], count)
+
+          def commit_set(items):
+              require(isinstance(items, list), "GitHub returned an invalid commit page")
+              seen = set()
+              for item in items:
+                  sha = commit_sha(item["sha"])
+                  require(sha not in seen, "GitHub returned duplicate commits")
+                  verification = item.get("commit", {}).get("verification", {})
+                  require(isinstance(verification, dict) and verification.get("verified") is True,
+                          f"Commit {sha[:12]} is not verified by GitHub; sign it and push again")
+                  seen.add(sha)
+              return seen
+
+          def verify(api, repository, number, expected):
+              endpoint = f"/repos/{repository}/pulls/{number}"
+              before = snapshot(api.request(endpoint), repository)
+              require(before[:3] == expected, "PR head or base changed; a fresh run is required")
+              head, base, _, count = before
+              proposed, compared = set(), set()
+              for offset in range(0, count, PAGE_SIZE):
+                  page = offset // PAGE_SIZE + 1
+                  query = f"?per_page={PAGE_SIZE}&page={page}"
+                  items = api.request(endpoint + "/commits" + query)
+                  require(isinstance(items, list) and len(items) == min(PAGE_SIZE, count - offset),
+                          "GitHub returned an incomplete PR commit list")
+                  batch = commit_set(items)
+                  require(not proposed.intersection(batch), "GitHub repeated a PR commit page")
+                  proposed.update(batch)
+                  # Immutable SHAs prevent a push or retarget from mixing pages.
+                  comparison = api.request(f"/repos/{repository}/compare/{base}...{head}" + query)
+                  require(type(comparison.get("total_commits")) is int
+                          and comparison["total_commits"] == count
+                          and comparison["base_commit"]["sha"] == base,
+                          "GitHub comparison does not match the complete PR commit range")
+                  items = comparison.get("commits")
+                  require(isinstance(items, list) and len(items) == min(PAGE_SIZE, count - offset),
+                          "GitHub returned an incomplete comparison")
+                  batch = commit_set(items)
+                  require(not compared.intersection(batch), "GitHub repeated a comparison page")
+                  compared.update(batch)
+              require(len(proposed) == count and proposed == compared and head in proposed,
+                      "PR commit set does not match its immutable base and head")
+              require(snapshot(api.request(endpoint), repository) == before,
+                      "PR changed during verification; a fresh run is required")
+              return before
+
+          def run(api, repository, event, run_url):
+              require(re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", repository),
+                      "Invalid repository name")
+              number = event.get("number")
+              require(type(number) is int and number > 0, "Invalid pull request number")
+              head = commit_sha(event["pull_request"]["head"]["sha"])
+              status_path = f"/repos/{repository}/statuses/{head}"
+
+              def publish(state, description):
+                  result = api.request(status_path, {"state": state, "context": CONTEXT,
+                      "description": description[:140], "target_url": run_url})
+                  require(result.get("state") == state and result.get("context") == CONTEXT,
+                          "GitHub did not confirm the requested commit status")
+
+              try:
+                  # Reset any prior success before reading mutable PR metadata.
+                  publish("pending", "Checking every PR commit signature")
+                  base = event["pull_request"]["base"]
+                  expected = (head, commit_sha(base["sha"]), base["ref"])
+                  result = verify(api, repository, number, expected)
+                  # verify() ends with a fresh PR snapshot. The status belongs
+                  # only to that immutable head; a new head needs its own check.
+                  publish("success", f"All {result[3]} PR commits have verified signatures")
+                  print(f"Verified all {result[3]} commits for PR #{number} at {head}")
+                  return 0
+              except Exception as error:
+                  message = str(error) if isinstance(error, VerificationError) else "Invalid GitHub API data; verification failed closed"
+                  try:
+                      publish("failure", message)
+                  except Exception:
+                      print("::error::Could not publish failure; the required status must not be bypassed")
+                  print("::error::" + message)
+                  return 1
+
+          def main():
+              try:
+                  require(os.environ.get("GITHUB_EVENT_NAME") == "pull_request_target", "Unexpected workflow event")
+                  event = json.loads(Path(os.environ["GITHUB_EVENT_PATH"]).read_text())
+                  repository = os.environ["GITHUB_REPOSITORY"]
+                  run_id = os.environ["GITHUB_RUN_ID"]
+                  require(run_id.isdigit(), "Invalid workflow run ID")
+                  return run(GitHub(os.environ.get("GH_TOKEN")), repository, event,
+                             f"https://github.com/{repository}/actions/runs/{run_id}")
+              except Exception:
+                  print("::error::Cannot initialize the trusted signature verifier")
+                  return 1
+
+          if __name__ == "__main__":
+              sys.exit(main())
+          PY
