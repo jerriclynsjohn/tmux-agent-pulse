@@ -1,0 +1,33 @@
+name: Feature request
+description: Describe a tmux workflow that AgentPulse can improve.
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Search existing issues before you submit a request.
+        Describe the workflow and the result you need. Remove private project details from examples.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or workflow
+      description: What are you trying to do, and what gets in the way?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behavior
+      description: Describe what AgentPulse can show or do. Include an example of the desired result.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives or current workaround
+      description: Describe approaches you tried or considered.
+  - type: textarea
+    id: context
+    attributes:
+      label: Relevant setup
+      description: Include the provider, tmux setup, or other plugins that affect this workflow.
