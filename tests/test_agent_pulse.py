@@ -142,6 +142,64 @@ class LifecycleTests(unittest.TestCase):
                             tool_response={"answer": "yes"})
         self.assertEqual(record["state"], "working")
 
+    def test_claude_answer_clears_permission_after_input_gains_answer_fields(self):
+        original_input = {"questions": [{"question": "Which order?"}]}
+        for name, response, expected in (
+                ("PostToolUse", {"answers": {"Which order?": "Priority"}}, "working"),
+                ("PostToolUseFailure", {"cancelled": True}, "cancelled")):
+            with self.subTest(event=name):
+                call = {"tool_name": "AskUserQuestion", "tool_use_id": "question-1",
+                        "tool_input": original_input}
+                record = transition({}, "UserPromptSubmit", provider="claude")
+                record = transition(record, "PreToolUse", provider="claude", **call)
+                record = transition(record, "PermissionRequest", provider="claude",
+                                    tool_name="AskUserQuestion", tool_input=original_input)
+                record = transition(record, "Notification", provider="claude",
+                                    notification_type="permission_prompt")
+                completed = {**call, "tool_input": {**original_input,
+                             "answers": {"Which order?": "Priority"}, "annotations": {}}}
+                record = transition(record, name, provider="claude", now=120,
+                                    **completed, tool_response=response)
+                self.assertEqual(record["state"], expected)
+                self.assertFalse(record["pending_questions"])
+                self.assertFalse(record["pending_permissions"])
+                self.assertEqual(record["turn_started_at"], 100)
+                self.assertEqual(original_input, {"questions": [{"question": "Which order?"}]})
+
+    def test_claude_answer_preserves_other_pending_questions(self):
+        for second_question in ("Which order?", "Which format?"):
+            with self.subTest(second_question=second_question):
+                record = transition({}, "UserPromptSubmit", provider="claude")
+                calls = [{"tool_name": "AskUserQuestion", "tool_use_id": f"question-{i}",
+                          "tool_input": {"questions": [{"question": question}]}}
+                         for i, question in enumerate(("Which order?", second_question))]
+                for call in calls:
+                    record = transition(record, "PreToolUse", provider="claude", **call)
+                    record = transition(record, "PermissionRequest", provider="claude",
+                                        tool_name=call["tool_name"], tool_input=call["tool_input"])
+                for i, call in enumerate(calls):
+                    completed = {**call, "tool_input": {**call["tool_input"],
+                                 "answers": {"answer": "Selected"}, "annotations": {}}}
+                    record = transition(record, "PostToolUse", provider="claude", **completed)
+                    self.assertEqual(record["state"], "waiting" if i == 0 else "working")
+                    self.assertEqual(len(record["pending_questions"]), 1 - i)
+                    if i == 0 and second_question != "Which order?":
+                        self.assertEqual(len(record["pending_permissions"]), 1)
+                self.assertFalse(record["pending_permissions"])
+
+    def test_answer_fields_remain_part_of_other_tools_permission_identity(self):
+        for field in ("answers", "annotations"):
+            with self.subTest(field=field):
+                tool_input = {"command": "synthetic", field: {"value": "first"}}
+                record = transition(self.working(provider="claude"), "PermissionRequest",
+                                    provider="claude", tool_name="OtherTool", tool_input=tool_input)
+                record = transition(record, "PostToolUse", provider="claude", tool_name="OtherTool",
+                                    tool_input={**tool_input, field: {"value": "second"}})
+                self.assertEqual(record["state"], "waiting")
+                record = transition(record, "PostToolUse", provider="claude", tool_name="OtherTool",
+                                    tool_input=tool_input)
+                self.assertEqual(record["state"], "working")
+
     def test_idle_notification_is_not_waiting(self):
         record = self.working()
         self.assertIs(transition(record, "Notification", notification_type="idle_prompt"), record)

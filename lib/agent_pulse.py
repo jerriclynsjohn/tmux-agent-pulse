@@ -223,7 +223,11 @@ def permission_key(event, with_id=True):
     if not isinstance(value, dict) or not value:
         return _tool(event) or "permission"
     # Approval prompts can add a description absent from the completed call.
-    value = {key: item for key, item in value.items() if key != "description"}
+    ignored = {"description"}
+    if _tool(event) == "AskUserQuestion":
+        # Claude adds these fields after the user answers the original questions.
+        ignored.update(("answers", "annotations"))
+    value = {key: item for key, item in value.items() if key not in ignored}
     fingerprint = hashlib.sha256(json.dumps(value, sort_keys=True).encode()).hexdigest()[:20]
     return f"{_tool(event)}:{fingerprint}"
 

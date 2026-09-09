@@ -114,6 +114,46 @@ class RenderingTests(unittest.TestCase):
         self.assertFalse(any(c[0] == "capture-pane" for c in self.commands))
         self.assertEqual(status.load_record("%1")["state"], "waiting")
 
+    def test_claude_star_title_cannot_finish_work_or_dismiss_an_approval(self):
+        self.use_claude()
+        self.snapshot = pane(title="✳ Taskboard")
+        for index, content in enumerate((
+                "Priority, highest first. Implementing that now.\n✻ Unravelling…\nesc to interrupt",
+                "Do you want to overwrite taskboard.py?\n1. Yes\n2. No\nEsc to cancel",
+                "")):
+            with self.subTest(content=content):
+                self.content = content
+                record = self.save(provider="claude")
+                if index == 1:
+                    record.update(pending_questions={}, pending_permissions={"Write:approval": True})
+                    status.save_record("%1", record)
+                self.ticker.tick(now=500 + index, monotonic=500 + index)
+                self.assertEqual(status.load_record("%1"), record)
+                self.assertEqual(self.ticker.published[("pane", "%1", "@agent-pulse-state")], "waiting")
+                self.assertEqual(self.ticker.published[("window", "@1", "@agent-pulse-window-state")], "waiting")
+
+    def test_claude_overwrite_approval_blocks_working_title_recovery(self):
+        self.use_claude()
+        self.snapshot = pane(title="⠹ Taskboard")
+        self.content = "Do you want to overwrite taskboard.py?\n1. Yes\n2. No\nEsc to cancel"
+        record = self.save(provider="claude")
+        record.update(pending_questions={}, pending_permissions={"Write:approval": True})
+        status.save_record("%1", record)
+        self.ticker.tick(now=500, monotonic=500)
+        self.assertEqual(status.load_record("%1"), record)
+        self.assertEqual(self.ticker.published[("pane", "%1", "@agent-pulse-state")], "waiting")
+
+    def test_claude_stop_hook_finishes_a_wait_with_star_title(self):
+        self.use_claude()
+        self.snapshot = pane(title="✳ Taskboard")
+        record = self.save(provider="claude")
+        owner = {"provider": "claude", "pid": 101, "start": "claude-start"}
+        stopped = status.reduce_event(record, "claude", {"hook_event_name": "Stop"}, owner, now=20)
+        status.save_record("%1", stopped)
+        self.ticker.tick(now=30, monotonic=0)
+        self.assertEqual(self.ticker.published[("pane", "%1", "@agent-pulse-state")], "idle")
+        self.assertEqual(self.ticker.published[("window", "@1", "@agent-pulse-window-state")], "idle")
+
     def test_claude_prompt_recovery_is_rate_limited_then_tracks_positive_title(self):
         self.use_claude()
         self.save(provider="claude")
@@ -132,7 +172,7 @@ class RenderingTests(unittest.TestCase):
     def test_recovery_respects_grace_and_real_hook_wins_capture_race(self):
         self.use_claude()
         self.save(provider="claude", updated_at=19)
-        self.snapshot = pane(title="✳ task")
+        self.snapshot = pane(title="⠹ task")
         self.ticker.tick(now=20, monotonic=0)
         self.assertFalse(any(c[0] == "capture-pane" for c in self.commands))
 

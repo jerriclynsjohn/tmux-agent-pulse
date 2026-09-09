@@ -221,6 +221,36 @@ class SmokeTest:
         assert not status.load_record(self.panes["codex"])
         print("PASS: mixed-provider priority, cancelled owner exit with surviving shell, orphan removal, and session cleanup", flush=True)
 
+    def claude_question_and_approval_recovery(self):
+        self.tmux(["select-pane", "-t", self.panes["claude"], "-T", "✳ Synthetic task"])
+        self.emit("claude", "UserPromptSubmit")
+        call = {"tool_name": "AskUserQuestion", "tool_use_id": "expanded-question",
+                "tool_input": {"questions": [{"question": "Which order?"}]}}
+        self.emit("claude", "PreToolUse", **call)
+        self.emit("claude", "PermissionRequest", tool_name=call["tool_name"], tool_input=call["tool_input"])
+        self.emit("claude", "Notification", notification_type="permission_prompt")
+        self.assert_ui("claude", "waiting")
+        completed = {**call, "tool_input": {**call["tool_input"],
+                     "answers": {"Which order?": "Priority"}, "annotations": {}}}
+        self.emit("claude", "PostToolUse", **completed, tool_response=completed["tool_input"])
+        self.assert_ui("claude", "working")
+
+        approval = {"tool_name": "Write", "tool_input": {"file_path": "synthetic.txt", "content": "test"}}
+        self.emit("claude", "PermissionRequest", **approval)
+        self.assert_ui("claude", "waiting")
+        deadline = time.monotonic() + 3.5
+        while time.monotonic() < deadline:
+            assert self.option(self.panes["claude"], "@agent-pulse-state") == "waiting"
+            assert status.load_record(self.panes["claude"])["state"] == "waiting"
+            time.sleep(.1)
+        self.assert_ui("claude", "waiting")
+        self.assert_window("⏳")
+        self.emit("claude", "PostToolUse", **approval, tool_use_id="approved-write")
+        self.assert_ui("claude", "working")
+        self.emit("claude", "Stop")
+        self.assert_ui("claude", "idle")
+        print("PASS: expanded Claude question answer resumes work; star title preserves an unanswered approval", flush=True)
+
     def close(self):
         if self.ticker is not None and self.ticker.poll() is None:
             self.ticker.terminate()
@@ -250,6 +280,7 @@ def main():
                 test.start()
                 test.lifecycle("claude")
                 test.lifecycle("codex")
+                test.claude_question_and_approval_recovery()
                 test.priority_and_cleanup()
             finally:
                 test.close()

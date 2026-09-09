@@ -18,5 +18,7 @@
 - Clear stale indicators when unloading after a ticker crash, while preserving another checkout or runtime's state.
 - Reject duplicate configuration aliases and recover existing alias records during hook removal.
 - Validate key settings before changing bindings and retain ownership after a partial binding failure.
+- Resume Claude's working status after question answers add response fields to the tool input.
+- Preserve unanswered Claude approvals when the pane title shows a static star, and recognize overwrite prompts during recovery.
 
 This preview has no tagged release. Changes above remain unreleased.
