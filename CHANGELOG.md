@@ -11,5 +11,9 @@
 - Add private tmux integration tests and a macOS/Linux CI matrix.
 - Preserve status through transient tmux timeouts, with capped retries and responsive shutdown.
 - Support tmux 3.4 field output and tmux 3.7c key lookup behavior without replacing existing bindings.
+- Add the MIT license, community and security reporting policies, and release guidance.
+- Require verified commits and passing CI through protected pull requests.
+- Delete merged repository branches automatically while preserving unmerged work.
+- Pin CI actions and the TPM test checkout, with Dependabot proposals for action updates.
 
-This preview has no tagged release or selected license.
+This preview has no tagged release. Changes above remain unreleased.

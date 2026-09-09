@@ -1,15 +1,17 @@
 # AgentPulse for tmux
 
-AgentPulse shows the status of Claude Code and Codex CLI conversations in tmux.
-It adds window and pane indicators, an optional popup picker, and an optional sidebar.
+[![Tests](https://github.com/jerriclynsjohn/tmux-agent-pulse/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/jerriclynsjohn/tmux-agent-pulse/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+
+AgentPulse shows which Claude Code and Codex CLI conversations are working, waiting for you, or idle in tmux.
+Add indicators to your window list and pane borders, or use the optional popup picker and sidebar.
 
 The plugin tracks the process that owns each conversation.
 A live agent without a matching hook record appears as unknown.
 Internal child agents remain part of their parent pane.
 
-This repository contains the initial preview of
-[`tmux-agent-pulse`](https://github.com/jerriclynsjohn/tmux-agent-pulse).
-A tagged release and license selection remain pending.
+The plugin started as a way to keep track of Claude Code and Codex during daily work across several tmux panes.
+It is an early preview under the [MIT license](LICENSE). There is no tagged release yet.
 
 ## Requirements
 
@@ -170,3 +172,16 @@ PYTHONDONTWRITEBYTECODE=1 python3 tests/tmux_status_smoke.py
 The integration tests use private tmux servers and temporary agent processes.
 They do not send model requests or operate existing tmux panes.
 See [contribution guidance](CONTRIBUTING.md) and [release work](docs/roadmap.md).
+
+## Community
+
+- [Get help or report a bug](SUPPORT.md)
+- [Contribute a change](CONTRIBUTING.md)
+- [Report a security issue privately](SECURITY.md)
+- [Code of conduct](CODE_OF_CONDUCT.md)
+- [Changelog](CHANGELOG.md) and [release policy](docs/releasing.md)
+
+## License
+
+AgentPulse is available under the [MIT license](LICENSE).
+The code of conduct retains its [Contributor Covenant attribution](CODE_OF_CONDUCT.md#attribution).

@@ -9,7 +9,7 @@ From the checkout, run:
 ./bin/tmux-agent-pulse doctor --json
 ```
 
-For an explicit server, put the socket argument before the command:
+To select a server, put the socket argument before the command:
 
 ```sh
 ./bin/tmux-agent-pulse --socket /path/to/tmux.sock doctor --json
@@ -27,7 +27,7 @@ It does not mean the agent crashed or finished.
 5. Read `events.jsonl` and `ticker.log` in the reported runtime directory.
 
 The event log records saved, ignored, deleted, unroutable, and failed hook outcomes.
-An unroutable event comes from a process chain that cannot prove ownership of a tmux agent pane.
+An unroutable event means the plugin could not trace the process back to an agent in a tmux pane.
 The plugin does not use `TMUX_PANE` alone as ownership evidence.
 It does not mark a quiet agent as finished to hide a missing record.
 
@@ -51,11 +51,12 @@ If doctor reports another checkout's ticker, unload it from that checkout before
 
 No keys are assigned by default.
 Configured popup and sidebar keys use the tmux prefix table.
-An existing foreign binding takes precedence, and plugin loading reports the conflict.
+An existing binding from your configuration or another plugin takes precedence.
+AgentPulse reports the conflict when it loads.
 
 The popup requires `fzf` and a tmux client that supports popups.
 The sidebar does not require `fzf`.
-For a client selected outside its shell, use the command's global `--client` argument.
+To select a client from outside its shell, use the global `--client` argument.
 
 ## Data retention
 

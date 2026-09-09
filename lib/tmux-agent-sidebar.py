@@ -1,20 +1,16 @@
 #!/usr/bin/env python3
-"""AgentPulse sidebar — narrow vim-style tree of Claude and Codex panes.
+"""Show Claude and Codex panes in a narrow sidebar with vim-style keys.
 
-Lives in an optional pane on the left of every window (24 columns by default).
-Reads the ticker's tmux pane options every 200ms while visible and once per
-second while hidden. The highlighted row reflects
-the currently-active pane across the user's tmux client — when the
-user uses tmux's own pane-nav (prefix+arrows etc.) the highlight
-follows automatically.
+The optional sidebar sits on the left of each window (24 columns by default).
+It reads the ticker's tmux pane options every 200 ms while visible and once
+per second while hidden. The highlight follows the active pane in the
+sidebar's own window, including changes made with tmux's navigation keys.
 
-Keys (active only while the sidebar pane itself is focused):
-    j / Down / Ctrl+Down   — switch tmux to the next pane in the tree
-    k / Up   / Ctrl+Up     — switch tmux to the previous pane
-    Enter / Right / l      — re-fire switch to the selected pane (no-op
-                             when the highlight already follows the
-                             active pane)
-    q                       — quit (closes this sidebar pane)
+Keys work while the sidebar has focus:
+    j / Down / Ctrl+Down   Switch to the next pane in the tree.
+    k / Up / Ctrl+Up       Switch to the previous pane.
+    Enter / Right / l      Switch to the selected pane.
+    q                     Close this sidebar pane.
 """
 import curses
 import os
@@ -40,14 +36,11 @@ ICONS = {
 }
 ASCII_ICONS = {"waiting": "?", "working": "*", "cancelled": "x", "idle": "+", "unknown": "-"}
 
-# Terminal palette; no external theme or patched font is required.
-# Each fg has three pair slots:
-#   - default-bg            (normal row)
-#   - SEL_BG (passive)      — used to mark the currently-active pane
-#                              when the user isn't focused on the sidebar
-#   - NAV_BG (nav cursor)   — used while the user is keyboard-navigating
-#                              the sidebar, so it's visually distinct from
-#                              the passive active marker
+# Use the terminal palette without an external theme or patched font.
+# Each foreground color has three background pairs:
+#   default-bg: Normal row.
+#   SEL_BG: Active pane while focus is outside the sidebar.
+#   NAV_BG: Selected row while navigating within the sidebar.
 SEL_BG = 237  # passive "your focus is here" tint
 NAV_BG = 24   # active "you're picking this" tint
 P_WAIT,    P_WAIT_S,    P_WAIT_N    = 1,  11,  21
@@ -81,8 +74,7 @@ HOST = _hostname()
 
 
 def _set_pane_title():
-    """OSC 2 sequence — tells the host terminal (and tmux, which captures
-    it as pane_title) what this pane is."""
+    """Set the terminal title with OSC 2; tmux also stores it as pane_title."""
     sys.stdout.write("\033]2;AgentPulse\007")
     sys.stdout.flush()
 
@@ -163,7 +155,7 @@ def collect_sidebar_snapshot(my_session=None, my_pane=None):
             })
             last_window = win_key
 
-        # Title priority — same as the pane-border-format:
+        # Use the same title priority as pane-border-format:
         #   user_name set        → "<user_name> · <agent task>"  (or just
         #                            <user_name> when the title is the
         #                            default hostname)
@@ -215,7 +207,7 @@ def collect_tree(my_session=None):
 
 
 def get_my_session(my_pane=None):
-    """Session the sidebar pane itself lives in — used to scope the tree."""
+    """Find this sidebar's session so the tree stays within it."""
     try:
         if not my_pane:
             return None
@@ -302,8 +294,8 @@ def _init_colors():
         curses.init_pair(P_FILL_NAV, curses.COLOR_WHITE, NAV_BG)
         HIGH_COLOR = True
     else:
-        # 8-color fallback — collapse both bg variants to the default
-        # and let A_REVERSE handle the highlight.
+        # With eight colors, use the default background for both variants
+        # and let A_REVERSE draw the highlight.
         fb = {
             P_WAIT:    curses.COLOR_YELLOW,
             P_WORK:    curses.COLOR_CYAN,
@@ -433,8 +425,7 @@ def _render(stdscr, rows, highlight_idx, highlight_kind):
             continue
 
         if row["kind"] == "window":
-            # Bold blue — the previous "session" treatment, repurposed
-            # since the sidebar is already session-scoped.
+            # Use bold blue for window headings within this session.
             _safe_addstr(stdscr, y, 0,
                          _trunc(row["label"], w - 1),
                          _color(P_SESSION) | curses.A_BOLD)
@@ -595,7 +586,7 @@ def _y_to_row_idx(y, rows):
     if hit and hit[0] == "pane":
         return hit[1]
 
-    # Non-pane click — snap to nearest pane row by y distance.
+    # For a click outside a pane row, select the nearest pane vertically.
     pane_layout = [(s, e, idx) for (s, e, k, idx) in layout if k == "pane"]
     if not pane_layout:
         return None
@@ -643,8 +634,7 @@ def main(stdscr):
     stdscr.timeout(200)  # 5Hz redraw so the active-pane marker stays in sync
     _init_colors()
     _load_options()
-    # Enable mouse — single-button click events. The sidebar will trap
-    # them, identify the target pane row, and switch focus.
+    # Enable mouse clicks so the sidebar can focus the clicked pane.
     try:
         curses.mousemask(curses.BUTTON1_CLICKED | curses.BUTTON1_PRESSED |
                          curses.BUTTON1_RELEASED)

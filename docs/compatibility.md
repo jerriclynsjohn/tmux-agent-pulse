@@ -7,7 +7,8 @@ The popup also needs `fzf`.
 
 The original integration ran on macOS with tmux 3.6a and Codex CLI 0.153.4.
 The standalone package includes CI jobs for macOS and Ubuntu with Python 3.10 and 3.13.
-The [GitHub Actions page](https://github.com/jerriclynsjohn/tmux-agent-pulse/actions) shows their results.
+The [CI matrix passed on commit `8ead514`](https://github.com/jerriclynsjohn/tmux-agent-pulse/actions/runs/34301781799).
+The [GitHub Actions page](https://github.com/jerriclynsjohn/tmux-agent-pulse/actions) shows newer results.
 Local validation passed 148 tests on macOS, including ticker timeout and compatibility regressions.
 Both integration smoke checks also passed during the initial extraction.
 Tagged releases require a passing macOS and Linux CI matrix.
@@ -25,8 +26,8 @@ Codex also requires trust for the installed command definitions.
 The installer leaves Codex trust unchanged for review through `/hooks`.
 The native Codex smoke test targets the interface available in Codex CLI 0.153.4.
 
-Hooks from an existing conversation can retain the previous configuration.
-A new conversation loads the installed definitions.
+Existing conversations can keep the previous hook configuration.
+Start a new conversation to load the installed definitions.
 Agents launched outside a tmux pane cannot update another pane through inherited environment variables.
 
 ## Automated coverage
@@ -34,9 +35,9 @@ Agents launched outside a tmux pane cannot update another pane through inherited
 Unit tests cover state transitions, pending questions and permissions, process ownership, file replacement, and diagnostic privacy.
 They also cover hook installation, ownership-aware removal, sidebar focus, and shared display state.
 
-Private tmux tests cover repeated plugin loading, checkout paths with spaces, foreign hooks and bindings, and theme preservation.
-They also cover real process discovery, namespaced state publication, and ticker cleanup.
-They exercise actual TPM discovery and separate default runtime directories for two tmux servers.
+Private tmux tests cover repeated plugin loading, checkout paths with spaces, unrelated hooks and bindings, and theme preservation.
+They also check process discovery, publication of the `@agent-pulse-` status fields, and ticker cleanup.
+The tests load the plugin through TPM and check that two tmux servers use separate runtime directories by default.
 The status smoke test compiles temporary sleeping programs named `claude` and `codex`.
 It sends synthetic lifecycle events through the production state engine and exercises all three displays.
 
@@ -65,13 +66,13 @@ Asynchronous questions remain pending after the question tool returns.
 A new user prompt acknowledges those questions.
 Hooks cannot distinguish an answer from unrelated guidance in that new prompt.
 
-Claude alone has limited recovery from its title and visible permission prompt.
+For Claude, the plugin uses the pane title and visible permission prompt to recover some missing status.
 That recovery requires positive evidence and cannot overwrite a newer hook event.
 Codex does not infer completion from a quiet terminal.
 
 ## Release evidence still needed
 
-- Remote macOS and Linux CI results
+- Passing macOS and Linux CI results for the release candidate
 - A documented minimum tmux version
 - Native interactive permission, interruption, and question exercises
 - Multiple attached clients and multiple server stress exercises

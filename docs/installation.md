@@ -1,8 +1,7 @@
 # Installation and removal
 
-The TPM entry point loads the tmux display.
-The `install` command separately adds hooks to the selected providers.
-The hooks call this checkout directly, without copied code or a provider-specific runtime folder.
+TPM loads the tmux display; the separate `install` command adds provider hooks.
+Those hooks call the code in this checkout, so both providers use the same runtime.
 
 ## Install with TPM
 
@@ -15,7 +14,7 @@ set -g @plugin 'jerriclynsjohn/tmux-agent-pulse'
 Reload your tmux configuration.
 Press `prefix + I` to install and load the plugin.
 
-With TPM's default directory, open the checkout:
+If you use TPM's default directory, open the checkout:
 
 ```sh
 cd ~/.tmux/plugins/tmux-agent-pulse
@@ -26,7 +25,7 @@ Then install the provider hooks with the commands below.
 
 ## Install hooks
 
-From the checkout, preview one provider:
+From the checkout, choose the provider to preview:
 
 ```sh
 ./bin/tmux-agent-pulse install --provider claude
@@ -82,8 +81,7 @@ After moving it, run installation from the new path with the same installation-r
 The installer uses the manifest to replace its unchanged previous definitions.
 Review changed Codex commands again in `/hooks`, then start new agent conversations.
 
-The plugin refuses to replace a ticker owned by another checkout.
-It also refuses to signal a ticker whose process identity it cannot establish.
+The plugin will not replace another checkout's ticker or signal one whose process identity it cannot establish.
 The original personal dotfiles integration has a separate runtime directory and remains independent.
 Its hook commands are not migrated by this installer.
 
@@ -112,9 +110,9 @@ Its hook commands are not migrated by this installer.
 
 Uninstall examines the manifest's recorded configuration paths for the selected providers.
 Explicit provider-home arguments restrict removal to those paths.
-It removes exact unchanged definitions and preserves edited definitions with a report.
-It preserves unrelated hooks, configuration fields, backups, and status records.
+It removes only definitions that still match the installation record, reports any edited definitions, and leaves them in place.
+Unrelated hooks, configuration fields, backups, and status records stay in place too.
 
 Unload removes owned sidebar panes and callbacks, along with unchanged owned bindings and published status fields.
 It leaves agent conversations running.
-The distinction matters because [TPM removal](https://github.com/tmux-plugins/tpm#uninstalling-plugins) deletes the checkout, without undoing provider configuration.
+[TPM removal](https://github.com/tmux-plugins/tpm#uninstalling-plugins) deletes the checkout but leaves provider hooks in place, so run `uninstall` first.
