@@ -206,6 +206,84 @@ class InstallHooksTests(unittest.TestCase):
             self.assert_ok("--uninstall", "--apply")
         self.assertFalse((self.codex / "hooks.json").exists())
 
+    def test_install_refuses_a_second_alias_of_a_recorded_configuration(self):
+        original = {"unrelated": True}
+        target = self.write("claude", original)
+        self.assert_ok("--apply", "--provider", "claude")
+        alias_home = self.home / "alias profile"
+        alias_home.mkdir()
+        alias = alias_home / "settings.json"
+        alias.symlink_to(target)
+        before = target.read_bytes(), self.manifest_path.read_bytes()
+
+        status, output = self.run_cli("--apply", "--provider", "claude",
+                                      "--claude-home", str(alias_home))
+
+        self.assertEqual(status, 1, output)
+        self.assertIn("share a target", output)
+        self.assertEqual((target.read_bytes(), self.manifest_path.read_bytes()), before)
+        self.assertTrue(alias.is_symlink())
+        self.assert_ok("--uninstall", "--apply")
+        self.assertEqual(json.loads(target.read_text()), original)
+
+    def test_uninstall_recovers_previously_recorded_aliases(self):
+        self.assert_ok("--apply", "--provider", "claude")
+        target = self.claude / "settings.json"
+        alias_home = self.home / "alias profile"
+        alias_home.mkdir()
+        alias = alias_home / "settings.json"
+        alias.symlink_to(target)
+        manifest = json.loads(self.manifest_path.read_text())
+        # Older installers recorded this second path after finding all hooks
+        # already present. Put it first to verify ownership is order-independent.
+        duplicate = json.loads(json.dumps(manifest["installations"][0]))
+        duplicate.update(path=str(alias), created_file=False, created_hooks=False,
+                         created_events=[])
+        manifest["installations"].insert(0, duplicate)
+        self.manifest_path.write_text(json.dumps(manifest))
+
+        self.assert_ok("--uninstall", "--apply")
+
+        self.assertFalse(target.exists())
+        self.assertTrue(alias.is_symlink())
+        self.assertEqual(json.loads(self.manifest_path.read_text())["installations"], [])
+        self.assert_ok("--apply", "--provider", "claude")
+        self.assertTrue(target.exists())
+
+    def test_uninstall_by_recorded_alias_preserves_edits_and_other_profiles(self):
+        foreign = {"hooks": [{"type": "command", "command": "echo keep"}]}
+        target = self.write("claude", {"unrelated": True, "hooks": {"Stop": [foreign]}})
+        self.assert_ok("--apply", "--provider", "claude")
+        config = self.read("claude")
+        config["hooks"]["SessionStart"][0]["matcher"] = "resume"
+        edited = config["hooks"]["SessionStart"][0]
+        self.write("claude", config)
+        other_home = self.home / "independent profile"
+        self.assert_ok("--apply", "--provider", "claude", "--claude-home", str(other_home))
+        other_path = other_home / "settings.json"
+        other_before = other_path.read_bytes()
+        alias_home = self.home / "alias profile"
+        alias_home.mkdir()
+        alias = alias_home / "settings.json"
+        alias.symlink_to(target)
+        manifest = json.loads(self.manifest_path.read_text())
+        duplicate = json.loads(json.dumps(manifest["installations"][0]))
+        duplicate.update(path=str(alias), created_file=False, created_hooks=False,
+                         created_events=[])
+        manifest["installations"].append(duplicate)
+        self.manifest_path.write_text(json.dumps(manifest))
+
+        output = self.assert_ok("--uninstall", "--apply", "--provider", "claude",
+                                "--claude-home", str(alias_home))
+
+        self.assertIn("Kept edited claude SessionStart", output)
+        self.assertEqual(self.read("claude"), {"unrelated": True, "hooks": {
+            "Stop": [foreign], "SessionStart": [edited]}})
+        self.assertTrue(alias.is_symlink())
+        self.assertEqual(other_path.read_bytes(), other_before)
+        remaining = json.loads(self.manifest_path.read_text())["installations"]
+        self.assertEqual([entry["path"] for entry in remaining], [str(other_path)])
+
     def test_checkout_migration_updates_only_recorded_unchanged_commands(self):
         self.assert_ok("--apply", "--provider", "claude")
         old = installer.hook_command("claude")

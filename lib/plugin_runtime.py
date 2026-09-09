@@ -15,7 +15,7 @@ import time
 import uuid
 
 import agent_pulse as status
-from tmux_status_ticker import DEFAULT_COLORS, write_json
+from tmux_status_ticker import DEFAULT_COLORS, REFRESH, write_json
 
 ROOT = Path(__file__).resolve().parents[1]
 VERSION = "0.1.0-dev"
@@ -110,6 +110,31 @@ def require_our_ticker(value, socket=None):
                            "Run unload from that checkout first.")
 
 
+def owns_server(directory):
+    root = option("plugin-path")
+    runtime_dir = option("runtime-dir")
+    if root and root != str(ROOT):
+        raise RuntimeError("Another AgentPulse checkout owns this server; unload it first.")
+    if runtime_dir and Path(runtime_dir).resolve() != directory.resolve():
+        raise RuntimeError("Another AgentPulse runtime owns this server; unload it first.")
+    return root == str(ROOT)
+
+
+def clear_status_options():
+    panes = status.tmux(["list-panes", "-a", "-F", "#{pane_id} #{window_id}"])
+    commands, windows = [], set()
+    for line in panes.splitlines():
+        pane, window = line.split()
+        windows.add(window)
+        for name in ("state", "provider", "icon"):
+            commands += ["set-option", "-p", "-u", "-t", pane, "@agent-pulse-" + name, ";"]
+    for window in windows:
+        for name in ("window-state", "window-icon"):
+            commands += ["set-window-option", "-u", "-t", window, "@agent-pulse-" + name, ";"]
+    if commands:
+        status.tmux(commands + REFRESH)
+
+
 def binding(key):
     """Let tmux normalize key aliases without changing the prefix table.
 
@@ -175,14 +200,18 @@ def clear_bindings():
 
 
 def configure_bindings():
-    clear_bindings()
-    owned = owned_bindings()
+    requested = []
     for name, command in (("popup-key", "popup"), ("sidebar-key", "sidebar")):
         key = option(name)
         if not key:
             continue
         if len(key) > 80 or re.search(r"[\s;]", key) or key.startswith("-"):
             raise ValueError(f"Invalid @agent-pulse-{name}")
+        binding(key)  # Validate native key names before changing prefix bindings.
+        requested.append((key, command))
+    clear_bindings()
+    owned = owned_bindings()
+    for key, command in requested:
         if binding(key):
             print(f"AgentPulse: prefix {key} is already bound; leaving it unchanged.", file=sys.stderr)
             continue
@@ -195,8 +224,7 @@ def configure_bindings():
             exact_command = False
         if exact_command:
             owned[key] = {"root": str(ROOT), "definition": definition}
-    if owned:
-        status.tmux(["set-option", "-g", "@agent-pulse-owned-bindings", json.dumps(owned)])
+            status.tmux(["set-option", "-g", "@agent-pulse-owned-bindings", json.dumps(owned)])
 
 
 def load():
@@ -206,6 +234,7 @@ def load():
     directory = status.state_directory(socket)
     config = config_from_tmux()
     with control_lock(directory):
+        owns_server(directory)
         current = live_ticker(directory)
         require_our_ticker(current, socket)
         if lock_held(directory) and not current:
@@ -230,7 +259,8 @@ def load():
                 time.sleep(.05)
             if not current:
                 raise RuntimeError(f"Ticker startup timed out. Read {log_path}")
-        status.tmux(["set-option", "-g", "@agent-pulse-plugin-path", str(ROOT)])
+        status.tmux(["set-option", "-g", "@agent-pulse-plugin-path", str(ROOT), ";",
+                     "set-option", "-g", "@agent-pulse-runtime-dir", str(directory.resolve())])
         configure_bindings()
         print(f"AgentPulse active: PID {current['pid']} on {socket}")
     return 0
@@ -241,6 +271,7 @@ def unload():
     os.environ["AGENT_PULSE_SOCKET"] = socket
     directory = status.state_directory(socket)
     with control_lock(directory):
+        owns_server(directory)
         current = live_ticker(directory)
         require_our_ticker(current, socket)
         if lock_held(directory) and not current:
@@ -252,11 +283,22 @@ def unload():
                 time.sleep(.05)
             if lock_held(directory):
                 raise RuntimeError("Ticker is still stopping. Run doctor before retrying.")
-        import tmux_ui
-        tmux_ui.sidebar("off")
-        clear_bindings()
-        if option("plugin-path") == str(ROOT):
-            status.tmux(["set-option", "-gu", "@agent-pulse-plugin-path"])
+        # Hold the ticker lock through cleanup so a replacement cannot publish
+        # new values while we remove the stopped ticker's last values.
+        with open(directory / ".ticker.lock", "a+") as lock:
+            try:
+                fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError:
+                raise RuntimeError("A ticker started during unload; refusing to clear its status.")
+            require_our_ticker(metadata(directory), socket)
+            owned = owns_server(directory)
+            import tmux_ui
+            tmux_ui.sidebar("off")
+            clear_bindings()
+            if owned:
+                clear_status_options()
+                status.tmux(["set-option", "-gu", "@agent-pulse-plugin-path", ";",
+                             "set-option", "-gu", "@agent-pulse-runtime-dir"])
         print("AgentPulse unloaded. Agent hooks and status records are preserved.")
     return 0
 

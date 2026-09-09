@@ -100,7 +100,7 @@ class OwnershipTests(unittest.TestCase):
         with patch.object(runtime, "clear_bindings"), \
              patch.object(runtime, "owned_bindings", return_value={}), \
              patch.object(runtime, "option", side_effect=lambda name, default="": "P" if name == "popup-key" else default), \
-             patch.object(runtime, "binding", side_effect=["", "bind-key -T prefix P display-message foreign"]), \
+             patch.object(runtime, "binding", side_effect=["", "", "bind-key -T prefix P display-message foreign"]), \
              patch.object(runtime.status, "tmux") as tmux:
             runtime.configure_bindings()
         self.assertEqual(tmux.call_count, 1)
