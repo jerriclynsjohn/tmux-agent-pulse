@@ -13,6 +13,16 @@ Internal child agents remain part of their parent pane.
 The plugin started as a way to keep track of Claude Code and Codex during daily work across several tmux panes.
 It is an early preview under the [MIT license](LICENSE). There is no tagged release yet.
 
+## Demo
+
+[![AgentPulse sidebar shows Claude waiting for an answer and Codex idle.](docs/assets/agentpulse-demo.png)](docs/assets/agentpulse-demo.mp4)
+
+[Watch the demo](docs/assets/agentpulse-demo.mp4) (68 seconds, silent, 2.3 MB).
+
+The recording uses real Claude Code and Codex sessions in two sample projects.
+It shows a question and permission prompt, work resuming after a response, and navigation with the popup and sidebar.
+Captions are included, and pauses are shortened.
+
 ## Requirements
 
 - Python 3.10 or newer, with its standard library
