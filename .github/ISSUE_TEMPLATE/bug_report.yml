@@ -1,0 +1,63 @@
+name: Bug report
+description: Report incorrect status, display, installation, or tmux behavior.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Search existing issues before you submit a report.
+        Share only relevant configuration and logs. Remove secrets, private paths, and conversation text.
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Include the output of tmux -V and python3 --version. Run git rev-parse --short HEAD in the plugin checkout.
+      placeholder: |
+        OS and version:
+        Terminal and version:
+        tmux version:
+        Python version:
+        AgentPulse commit or tag:
+        Installation method (TPM or manual):
+        Provider and version (Claude Code, Codex CLI, both, or not applicable):
+        fzf version (for popup issues):
+    validations:
+      required: true
+  - type: textarea
+    id: configuration
+    attributes:
+      label: Minimal tmux configuration
+      description: Include AgentPulse configuration, relevant theme or key bindings, and plugin order. State whether other plugins affect reproduction.
+      render: shell
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce
+      description: Describe the smallest example, how you start the agent, and how often the problem occurs.
+      placeholder: |
+        1. Start tmux with ...
+        2. Run ...
+        3. Observe ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected result
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual result
+      description: Include the observed status or error. Screenshots are optional.
+    validations:
+      required: true
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Relevant diagnostics
+      description: Paste relevant output from bin/tmux-agent-pulse doctor --json, ticker.log, or events.jsonl after you remove private details.
+      render: text
