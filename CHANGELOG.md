@@ -15,5 +15,8 @@
 - Require verified commits and passing CI through protected pull requests.
 - Delete merged repository branches automatically while preserving unmerged work.
 - Pin CI actions and the TPM test checkout, with Dependabot proposals for action updates.
+- Clear stale indicators when unloading after a ticker crash, while preserving another checkout or runtime's state.
+- Reject duplicate configuration aliases and recover existing alias records during hook removal.
+- Validate key settings before changing bindings and retain ownership after a partial binding failure.
 
 This preview has no tagged release. Changes above remain unreleased.

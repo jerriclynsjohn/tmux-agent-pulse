@@ -7,6 +7,7 @@ import os
 from pathlib import Path
 import shutil
 import shlex
+import signal
 import subprocess
 import sys
 import tempfile
@@ -152,6 +153,98 @@ class PluginIntegrationTests(unittest.TestCase):
         self.assertEqual(self.prefix_binding("F11"), replaced)
         remaining = self.tmux("list-keys", "-T", "prefix")
         self.assertFalse(any(" F10 " in line for line in remaining.splitlines()))
+
+    def test_unload_clears_stale_indicators_after_ticker_is_killed(self):
+        self.entry()
+        pid = json.loads((self.states / "ticker.json").read_text())["pid"]
+        os.kill(pid, signal.SIGKILL)
+        wait_until("killed ticker released its lock", lambda: not self.lock_is_held())
+        # A killed ticker cannot clear its last published values.
+        for name, value in (("state", "working"), ("provider", "codex"), ("icon", "*")):
+            self.tmux("set-option", "-p", "@agent-pulse-" + name, value)
+        for name, value in (("state", "working"), ("icon", "*")):
+            self.tmux("set-window-option", "@agent-pulse-window-" + name, value)
+        self.tmux("set-option", "-p", "@foreign-pane", "keep")
+        self.cli("unload")
+        panes = self.tmux("show-options", "-p")
+        windows = self.tmux("show-window-options")
+        self.assertNotIn("@agent-pulse-state ", panes)
+        self.assertNotIn("@agent-pulse-provider ", panes)
+        self.assertNotIn("@agent-pulse-icon ", panes)
+        self.assertNotIn("@agent-pulse-window-state ", windows)
+        self.assertNotIn("@agent-pulse-window-icon ", windows)
+        self.assertIn("@foreign-pane keep", panes)
+        self.assertNotIn("@agent-pulse-runtime-dir ", self.tmux("show-options", "-g"))
+
+    def test_old_unload_preserves_a_newer_runtime_and_its_ticker(self):
+        self.entry()
+        self.cli("unload")
+        newer_states = self.directory / "newer-state"
+        newer_env = dict(self.env, AGENT_PULSE_DIR=str(newer_states))
+        executable = str(self.checkout / "bin/tmux-agent-pulse")
+        try:
+            subprocess.run([executable, "load"], env=newer_env, check=True,
+                           capture_output=True, text=True, timeout=15)
+            wait_until("new ticker published pane fields", lambda:
+                       "@agent-pulse-state " in self.tmux("show-options", "-p"))
+            before = self.tmux("show-options", "-p")
+            result = subprocess.run([executable, "unload"], env=self.env,
+                                    capture_output=True, text=True, timeout=15)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("Another AgentPulse runtime", result.stderr)
+            self.assertTrue(self.lock_is_held(newer_states))
+            self.assertEqual(self.tmux("show-options", "-p"), before)
+            self.assertEqual(self.tmux("show-options", "-gv", "@agent-pulse-runtime-dir"), str(newer_states))
+        finally:
+            subprocess.run([executable, "unload"], env=newer_env, check=True,
+                           capture_output=True, text=True, timeout=15)
+
+    def test_invalid_second_key_preserves_existing_bindings_on_reload(self):
+        self.tmux("set-option", "-g", "@agent-pulse-popup-key", "F11")
+        self.entry()
+        before = self.tmux("list-keys")
+        self.tmux("set-option", "-g", "@agent-pulse-popup-key", "F10")
+        self.tmux("set-option", "-g", "@agent-pulse-sidebar-key", "bad key")
+        result = subprocess.run([str(self.checkout / "agent-pulse.tmux")], env=self.env,
+                                capture_output=True, text=True, timeout=15)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("Invalid @agent-pulse-sidebar-key", result.stderr)
+        self.assertEqual(self.tmux("list-keys"), before)
+
+    def test_unload_from_another_checkout_preserves_current_owner(self):
+        self.entry()
+        other = self.directory / "other-checkout"
+        shutil.copytree(self.checkout, other)
+        before = self.tmux("show-options", "-g")
+        result = subprocess.run([str(other / "bin/tmux-agent-pulse"), "unload"],
+                                env=self.env, capture_output=True, text=True, timeout=15)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("Another AgentPulse checkout", result.stderr)
+        self.assertTrue(self.lock_is_held())
+        self.assertEqual(self.tmux("show-options", "-g"), before)
+
+    def test_unload_removes_first_binding_when_second_binding_fails(self):
+        self.tmux("set-option", "-g", "@agent-pulse-popup-key", "F11")
+        self.tmux("set-option", "-g", "@agent-pulse-sidebar-key", "F10")
+        binaries = self.directory / "failure-bin"
+        binaries.mkdir()
+        wrapper = binaries / "tmux"
+        wrapper.write_text(
+            "#!/usr/bin/env python3\nimport os, sys\n"
+            "args = sys.argv[1:]\n"
+            "if 'bind-key' in args:\n"
+            "    index = args.index('bind-key')\n"
+            "    if args[index + 1:index + 4] == ['-T', 'prefix', 'F10']:\n"
+            "        sys.exit(1)\n"
+            f"os.execv({shutil.which('tmux')!r}, ['tmux', *args])\n")
+        wrapper.chmod(0o755)
+        self.env["PATH"] = str(binaries) + os.pathsep + self.env["PATH"]
+        result = subprocess.run([str(self.checkout / "agent-pulse.tmux")], env=self.env,
+                                capture_output=True, text=True, timeout=15)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("tmux-agent-pulse", self.prefix_binding("F11"))
+        self.cli("unload")
+        self.assertEqual(self.prefix_binding("F11"), "")
 
     def test_native_key_aliases_preserve_foreign_bindings_without_leaving_probe_tables(self):
         for existing, requested in (("PageUp", "PgUp"), ("C-i", "C-i")):

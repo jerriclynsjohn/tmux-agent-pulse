@@ -218,20 +218,38 @@ def plan(args, manifest_path):
     changes, warnings = [], []
     if args.uninstall:
         retained = []
+        configurations = {}
+        selected_targets = {
+            (entry["provider"], Path(entry["path"]).resolve()) for entry in entries
+            if entry["provider"] in selected
+            and (not getattr(args, entry["provider"] + "_home")
+                 or str(paths[entry["provider"]]) == entry["path"])
+        }
         for entry in entries:
             provider = entry["provider"]
-            explicit_home = getattr(args, provider + "_home")
-            if provider not in selected or (explicit_home and str(paths[provider]) != entry["path"]):
+            if (provider, Path(entry["path"]).resolve()) not in selected_targets:
                 retained.append(entry)
                 continue
             snapshot = Snapshot.read(entry["path"])
             if snapshot.data is None:
                 continue
+            # Older manifests can name the same file through several symlinks.
+            # Apply their removals together so the target is written once.
+            _, aliases = configurations.setdefault(snapshot.target, (snapshot, []))
+            aliases.append(entry)
+        for snapshot, aliases in configurations.values():
             existing = snapshot.json({})
-            updated, messages = merge_uninstall(existing, entry)
-            warnings.extend(messages)
-            if updated != existing:
-                content = None if not updated and entry.get("created_file") else encode(updated)
+            updated = existing
+            created_events = list(dict.fromkeys(event for entry in aliases
+                                                for event in entry.get("created_events", [])))
+            created_hooks = any(entry.get("created_hooks") for entry in aliases)
+            for entry in aliases:
+                updated, messages = merge_uninstall(updated, {
+                    **entry, "created_events": created_events, "created_hooks": created_hooks})
+                warnings.extend(messages)
+            remove_file = not updated and any(entry.get("created_file") for entry in aliases)
+            if updated != existing or remove_file:
+                content = None if remove_file else encode(updated)
                 changes.append((snapshot, content))
         entries = retained
     else:
@@ -241,6 +259,14 @@ def plan(args, manifest_path):
             path = paths[provider]
             previous = next((entry for entry in entries if entry["provider"] == provider and entry["path"] == str(path)), None)
             snapshot = Snapshot.read(path)
+            # An unchanged config still needs this check: otherwise a second
+            # symlink alias is recorded without appearing in ``changes``.
+            if snapshot.target == manifest_snapshot.target:
+                raise ValueError("Configuration paths share a target with the install manifest")
+            for recorded in entries:
+                if recorded is not previous and Path(recorded["path"]).resolve() == snapshot.target:
+                    raise ValueError("Configuration paths share a target; use the recorded path "
+                                     f"{recorded['path']} or uninstall it first")
             existing = snapshot.json({})
             updated, metadata = merge_install(existing, provider, previous)
             entry = {"provider": provider, "path": str(path), **metadata,
