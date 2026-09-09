@@ -20,6 +20,6 @@
 - Validate key settings before changing bindings and retain ownership after a partial binding failure.
 - Resume Claude's working status after question answers add response fields to the tool input.
 - Preserve unanswered Claude approvals when the pane title shows a static star, and recognize overwrite prompts during recovery.
-- Add a recorded Claude Code and Codex demo with a linked README preview.
+- Add a recorded Claude Code and Codex demo with an inline README video player.
 
 This preview has no tagged release. Changes above remain unreleased.

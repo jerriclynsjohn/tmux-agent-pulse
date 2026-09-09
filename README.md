@@ -15,9 +15,9 @@ It is an early preview under the [MIT license](LICENSE). There is no tagged rele
 
 ## Demo
 
-[![AgentPulse sidebar shows Claude waiting for an answer and Codex idle.](docs/assets/agentpulse-demo.png)](docs/assets/agentpulse-demo.mp4)
+https://github.com/user-attachments/assets/e1846eb8-0d59-4285-9a0f-cbc694e39771
 
-[Watch the demo](docs/assets/agentpulse-demo.mp4) (68 seconds, silent, 2.3 MB).
+[Download the MP4](docs/assets/agentpulse-demo.mp4) (68 seconds, silent, 2.3 MB).
 
 The recording uses real Claude Code and Codex sessions in two sample projects.
 It shows a question and permission prompt, work resuming after a response, and navigation with the popup and sidebar.
