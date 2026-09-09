@@ -22,10 +22,10 @@ jobs:
       AGENT_PULSE_REAL_TMUX_TEST: '1'
       AGENT_PULSE_NOTIFY: '0'
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: tmux-plugins/tpm
           ref: e261deb1b47614eed3400089ce7197dc68acc4eb # Reviewed TPM master revision
