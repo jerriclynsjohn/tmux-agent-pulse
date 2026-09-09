@@ -1,6 +1,6 @@
 # Configuration
 
-AgentPulse publishes tmux fields and leaves their placement to your theme.
+AgentPulse publishes status fields for your tmux theme to display.
 Set plugin configuration before the entry point or TPM loads.
 After changes, run `bin/tmux-agent-pulse load` again.
 
@@ -15,8 +15,8 @@ After changes, run `bin/tmux-agent-pulse load` again.
 | `@agent-pulse-window-icon` | Window | The formatted window indicator |
 | `@agent-pulse-name` | Pane | An optional label for the sidebar and popup |
 
-Window state uses the highest-priority pane: waiting, working, cancelled, idle, then unknown.
-Separate pane and window names prevent the active pane from hiding a waiting agent elsewhere in that window.
+A window shows the highest-priority state among its panes: waiting, working, cancelled, idle, then unknown.
+Separate pane and window fields prevent the active pane from hiding a waiting agent elsewhere in that window.
 Empty state means no recognized agent owns the pane or window.
 The plugin uses `@agent-pulse-` names for its public configuration and internal metadata.
 
@@ -58,11 +58,10 @@ Colors accept tmux color names or hexadecimal RGB values, such as `#a6e3a1`.
 
 Color and custom-symbol configuration applies to status indicators.
 The popup and sidebar use their own terminal palettes and support the ASCII mode.
-An existing sidebar reads ASCII configuration at startup.
-To refresh that configuration, turn the sidebar off, then on.
+The sidebar reads ASCII configuration at startup.
+Turn it off, then on to pick up a change.
 
-Existing foreign key bindings remain unchanged, even when you request the same key.
-The plugin reports the collision.
+AgentPulse keeps bindings set by you or other plugins and reports a conflict if you request the same key.
 Reloading and unloading remove only bindings whose current definition still matches this checkout's definition.
 
 ## Commands
@@ -87,7 +86,7 @@ Use global arguments before the command:
 ```
 
 `--client` selects the client for popup and focus actions.
-The normal configured key bindings pass the active client automatically.
+The plugin's key bindings pass the active client automatically.
 
 ## Data and environment
 
@@ -99,7 +98,7 @@ The installation manifest and backups use `${XDG_STATE_HOME:-~/.local/state}/tmu
 | --- | --- |
 | `AGENT_PULSE_DIR` | Override the runtime directory for one server |
 | `AGENT_PULSE_SOCKET` | Select a tmux socket explicitly |
-| `AGENT_PULSE_NOTIFY` | Set `1` to enable the inherited macOS notification backend |
+| `AGENT_PULSE_NOTIFY` | Set `1` to enable macOS notifications |
 | `CLAUDE_CONFIG_DIR` | Select the Claude configuration directory |
 | `CODEX_HOME` | Select the Codex configuration directory |
 | `XDG_STATE_HOME` | Select the parent directory for installation records |

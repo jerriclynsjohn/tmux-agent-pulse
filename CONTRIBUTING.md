@@ -1,7 +1,8 @@
 # Contributing
 
-AgentPulse is an initial preview. A tagged release and license selection remain pending.
-The plugin represents foreground agent conversations through tmux status and optional views.
+AgentPulse is an early preview under the [MIT license](LICENSE). There is no tagged release yet.
+Participation follows the [code of conduct](CODE_OF_CONDUCT.md).
+Use the [security policy](SECURITY.md) for private vulnerability reports.
 
 ## Issues and pull requests
 
@@ -21,6 +22,21 @@ Every commit must carry a signature that GitHub verifies.
 After you configure a signing key, create commits with `git commit -S`.
 Make sure that GitHub shows **Verified** for each commit in your pull request.
 See [GitHub's signing instructions](https://docs.github.com/en/authentication/managing-commit-signature-verification/signing-commits).
+
+The maintainer reviews and merges changes through pull requests with squash merges.
+The protected `main` branch requires passing tests and verified commits, with no configured bypass.
+Automation and dependency updates follow the same checks.
+Contributions use the project's MIT license. Preserve any third-party notices in contributed material.
+
+### Branch cleanup
+
+GitHub automatically deletes repository branches after their pull requests merge.
+Branches in contributor forks remain under their owners' control.
+Closing an unmerged pull request or cancelling a CI run does not delete a branch.
+Delete an abandoned branch manually only after its owner confirms that the work is no longer needed.
+Local branches remain on your machine until you remove them.
+
+See GitHub's [automatic branch deletion documentation](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/configuring-pull-request-merges/managing-the-automatic-deletion-of-branches).
 
 ## Development environment
 
@@ -71,6 +87,10 @@ Report results from commands you actually ran.
 
 ## Change expectations
 
+- Write clear, specific documentation. Explain the behavior, then give the commands a reader needs.
+- Keep technical names consistent and remove filler, promotional claims, and repeated explanations.
+- Follow `.editorconfig` and keep executable scripts on LF line endings.
+- Describe user-visible changes in `CHANGELOG.md` under `Unreleased`.
 - Preserve unrelated provider hooks, tmux hooks, key bindings, and themes.
 - Keep plugin loading safe to repeat and provider installation separate from loading.
 - Use exact process identity before accepting status or stopping a process.
@@ -81,6 +101,7 @@ Report results from commands you actually ran.
 
 Use private tmux servers for integration experiments.
 Do not test cleanup against existing user panes or unrelated ticker processes.
+The [release policy](docs/releasing.md) defines versioning and checks before a tag.
 
 ## Source history
 

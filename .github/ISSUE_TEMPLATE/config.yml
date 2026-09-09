@@ -1,1 +1,8 @@
 blank_issues_enabled: false
+contact_links:
+  - name: Installation and support
+    url: https://github.com/jerriclynsjohn/tmux-agent-pulse/blob/main/SUPPORT.md
+    about: Start with setup, compatibility, and troubleshooting guidance.
+  - name: Report a security vulnerability privately
+    url: https://github.com/jerriclynsjohn/tmux-agent-pulse/security/advisories/new
+    about: Keep vulnerability details out of public issues.

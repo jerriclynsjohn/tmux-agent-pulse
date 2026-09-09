@@ -10,3 +10,6 @@
   `git diff --check`; explain why runtime tests do not apply.
 - Keep credentials, personal configuration, transcripts, and runtime state out
   of commits, issues, logs, and pull request descriptions.
+- Use the `unslop` skill for repository prose when it is available. Keep the
+  prose plain and specific, with consistent terms and no promotional filler.
+  Preserve commands, technical meaning, and standard license and policy text.

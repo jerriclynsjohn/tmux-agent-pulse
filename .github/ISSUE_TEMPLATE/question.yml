@@ -1,0 +1,31 @@
+name: Usage question
+description: Ask about installation, configuration, or an AgentPulse workflow.
+labels: [question]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Read the installation, configuration, and troubleshooting guides first.
+        Search existing issues for the same question.
+        Remove secrets, private paths, and conversation text from examples.
+  - type: textarea
+    id: question
+    attributes:
+      label: Question
+      description: Describe the result you want and the part that is unclear.
+    validations:
+      required: true
+  - type: textarea
+    id: setup
+    attributes:
+      label: Relevant setup
+      description: Include your OS, tmux version, provider and version, and installation method.
+    validations:
+      required: true
+  - type: textarea
+    id: tried
+    attributes:
+      label: What you tried
+      description: Link the documentation or existing issues you read. Include a minimal example if it helps.
+    validations:
+      required: true
