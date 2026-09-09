@@ -66,8 +66,9 @@ Asynchronous questions remain pending after the question tool returns.
 A new user prompt acknowledges those questions.
 Hooks cannot distinguish an answer from unrelated guidance in that new prompt.
 
-For Claude, the plugin uses the pane title and visible permission prompt to recover some missing status.
-That recovery requires positive evidence and cannot overwrite a newer hook event.
+For Claude, a braille spinner in the pane title can restore working status when no visible permission prompt remains.
+The static star title does not prove that Claude has finished; completion comes from a hook event.
+Title recovery cannot overwrite a newer hook event.
 Codex does not infer completion from a quiet terminal.
 
 ## Release evidence still needed

@@ -24,7 +24,7 @@ PRIORITY = {"": 0, "unknown": 1, "idle": 2, "cancelled": 3, "working": 4, "waiti
 SPINNER = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
 PROMPT = re.compile(
     r"Enter to (?:select|confirm).*Esc to cancel|"
-    r"Do you want (?:to|me to) (?:proceed|allow|run|continue)", re.IGNORECASE
+    r"Do you want (?:to|me to) (?:proceed|allow|run|continue|overwrite)", re.IGNORECASE
 )
 # Detached servers still need fresh metadata, but have no client to redraw.
 REFRESH = ["if-shell", "-F", "#{client_name}", "refresh-client -S"]
@@ -91,11 +91,9 @@ def parse_panes(snapshot):
 
 
 def title_state(title):
-    """Only Claude's explicit status glyphs provide recovery evidence."""
+    """A braille spinner can indicate work; the static star cannot prove idle."""
     if title and "\u2800" <= title[0] <= "\u28ff":
         return "working"
-    if title.startswith("✳"):
-        return "idle"
     return None
 
 
